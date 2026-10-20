@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env
+.env.*
+uploads
+kiosk-service
+*.bat
+DEPLOYMENT.md
+README.md
+Dockerfile
+docker-compose.yml
+.dockerignore
+.github

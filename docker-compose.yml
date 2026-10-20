@@ -1,0 +1,61 @@
+# ─────────────────────────────────────────────────────────────
+# RCC-HIROS — production stack
+#   app  : Next.js 16 standalone + prisma migrate deploy on start
+#   db   : MariaDB 11 (persistent volume)
+#   tunnel (optional profile): Cloudflare Tunnel → public URL
+#
+# Usage:
+#   docker compose up -d --build
+#   docker compose --profile tunnel up -d   # also expose via Cloudflare
+# ─────────────────────────────────────────────────────────────
+name: rcc-hiros
+
+services:
+  db:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: rcc_hiros
+      MARIADB_USER: ${DB_USER:-rcc}
+      MARIADB_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD in .env}
+      MARIADB_RANDOM_ROOT_PASSWORD: "1"
+    volumes:
+      - db-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_KIOSK_SERVICE_URL: ${NEXT_PUBLIC_KIOSK_SERVICE_URL:-http://127.0.0.1:8765}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://${DB_USER:-rcc}:${DB_PASSWORD}@db:3306/rcc_hiros
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      NEXT_PUBLIC_KIOSK_SERVICE_URL: ${NEXT_PUBLIC_KIOSK_SERVICE_URL:-http://127.0.0.1:8765}
+    ports:
+      - "3000:3000"
+    volumes:
+      - uploads:/app/uploads
+
+  # Optional: stable public URL through Cloudflare (requires a named tunnel + token)
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    profiles: ["tunnel"]
+    depends_on:
+      - app
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN:-}
+
+volumes:
+  db-data:
+  uploads:
