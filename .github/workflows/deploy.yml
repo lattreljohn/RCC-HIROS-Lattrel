@@ -36,6 +36,10 @@ jobs:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: ci
     runs-on: self-hosted
+    defaults:
+      run:
+        # Windows PowerShell with policy bypass — the runner host uses Restricted
+        shell: powershell -ExecutionPolicy Bypass -command ". '{0}'"
     steps:
       - uses: actions/checkout@v4
 
