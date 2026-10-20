@@ -7,7 +7,13 @@
 FROM node:24-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
+# BuildKit cache + generous retries: WSL2 networking can stall npm mid-download
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --no-fund \
+    --fetch-retries=5 \
+    --fetch-retry-mintimeout=20000 \
+    --fetch-retry-maxtimeout=120000 \
+    --fetch-timeout=600000
 
 # ── Stage 2: build ──────────────────────────────────────────
 FROM deps AS builder
