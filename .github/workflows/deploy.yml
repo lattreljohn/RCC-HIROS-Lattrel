@@ -36,9 +36,6 @@ jobs:
     if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     needs: ci
     runs-on: self-hosted
-    defaults:
-      run:
-        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -49,22 +46,23 @@ jobs:
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
           TUNNEL_TOKEN: ${{ secrets.TUNNEL_TOKEN }}
         run: |
-          ARGS=""
-          if [ -n "$TUNNEL_TOKEN" ]; then
-            ARGS="--profile tunnel"
-          fi
-          docker compose $ARGS up -d --build
+          $extra = @()
+          if ($env:TUNNEL_TOKEN) { $extra = @("--profile", "tunnel") }
+          docker compose @extra up -d --build
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Health check
         run: |
-          for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/ || true)
-            if [ "$code" != "000" ]; then
-              echo "App is responding (HTTP $code)"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "App failed health check"
-          docker compose logs app
-          exit 1
+          $code = "000"
+          foreach ($i in 1..30) {
+            $code = (curl.exe -s -o NUL -w "%{http_code}" --max-time 5 http://localhost:3000/)
+            Write-Host "attempt $i -> HTTP $code"
+            if ($code -ne "000" -and $code -ne "") { break }
+            Start-Sleep -Seconds 5
+          }
+          if ($code -eq "000" -or $code -eq "") {
+            Write-Host "App failed health check"
+            docker compose logs app
+            exit 1
+          }
+          Write-Host "App is responding (HTTP $code)"
